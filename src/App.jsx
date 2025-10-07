@@ -1,76 +1,67 @@
-import React, { useState } from 'react';
-import VehicleOwner from './components/VehicleOwner.jsx';
-import ServicePanel from './components/ServicePanel.jsx';
-import BuyerPanel from './components/BuyerPanel.jsx';
+import React, { useState, useEffect } from 'react';
+import { onAuthChange, getUserProfile } from './api.js';
+import Auth from './components/Auth.jsx';
+import GalleryDashboard from './components/GalleryDashboard.jsx';
+import ServiceDashboard from './components/ServiceDashboard.jsx';
+import BuyerDashboard from './components/BuyerDashboard.jsx';
 
 function App() {
-  const [view, setView] = useState('home'); // 'home', 'owner', 'service', 'buyer'
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const renderView = () => {
-    switch (view) {
-      case 'owner':
-        return <VehicleOwner />;
-      case 'service':
-        return <ServicePanel />;
-      case 'buyer':
-        return <BuyerPanel />;
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const profile = await getUserProfile(firebaseUser.uid);
+        setUserProfile(profile);
+      } else {
+        setUser(null);
+        setUserProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const renderDashboard = () => {
+    if (!userProfile) {
+      return <div className="text-center p-10">Kullanıcı paneli yükleniyor...</div>;
+    }
+
+    switch (userProfile.role) {
+      case 'Galeri Sahibi':
+      case 'Bireysel Satıcı':
+        return <GalleryDashboard user={user} userProfile={userProfile} />;
+      case 'Servis':
+        return <ServiceDashboard user={user} userProfile={userProfile} />;
+      case 'Alıcı':
+        return <BuyerDashboard user={user} userProfile={userProfile} />;
       default:
-        return (
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">OtoRapor Sistemine Hoş Geldiniz</h2>
-            <p className="text-lg text-gray-600 mb-8">Lütfen yapmak istediğiniz işlemi seçin.</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <button onClick={() => setView('owner')} className="w-full text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg hover:bg-blue-50 transition-all flex items-center space-x-4">
-                <span className="text-4xl">🚗</span>
-                <div>
-                  <h3 className="text-lg font-bold text-blue-800">Araç Sahibi Paneli</h3>
-                  <p className="text-gray-600">Sisteme yeni araç ekleyin.</p>
-                </div>
-              </button>
-              <button onClick={() => setView('service')} className="w-full text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg hover:bg-green-50 transition-all flex items-center space-x-4">
-                <span className="text-4xl">🛠️</span>
-                <div>
-                  <h3 className="text-lg font-bold text-green-800">Servis Paneli</h3>
-                  <p className="text-gray-600">Yeni servis kaydı oluşturun.</p>
-                </div>
-              </button>
-              <button onClick={() => setView('buyer')} className="w-full text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg hover:bg-purple-50 transition-all flex items-center space-x-4">
-                <span className="text-4xl">👤</span>
-                <div>
-                  <h3 className="text-lg font-bold text-purple-800">Alıcı Paneli</h3>
-                  <p className="text-gray-600">Bir aracın servis geçmişini sorgulayın.</p>
-                </div>
-              </button>
-            </div>
-          </div>
-        );
+        return <div className="text-center p-10">Tanımsız kullanıcı rolü.</div>;
     }
   };
+  
+  if (loading) {
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <div className="text-center">
+                <p className="text-xl font-semibold text-gray-700">OtoRapor Yükleniyor...</p>
+                <div className="loader mt-4"></div>
+            </div>
+            <style>{`.loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
-      <header className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">
-            OtoRapor
-          </h1>
-          {view !== 'home' && (
-            <button
-              onClick={() => setView('home')}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors"
-            >
-              Ana Sayfa
-            </button>
-          )}
-        </div>
-      </header>
-      <main className="py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {renderView()}
-        </div>
-      </main>
+    <div className="font-sans">
+      {user ? renderDashboard() : <Auth onLoginSuccess={setUser} />}
     </div>
   );
 }
 
 export default App;
+

@@ -1,150 +1,150 @@
-// --- Veritabanı ve Test Verisi Yönetimi ---
-const DB_KEY = "otoRaporDB_v3"; // Hataları önlemek için versiyonu güncelledik
+import { initializeApp } from "firebase/app";
+import { 
+    getAuth, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    onAuthStateChanged,
+    signOut
+} from "firebase/auth";
+import { 
+    getFirestore, 
+    collection, 
+    addDoc, 
+    getDocs, 
+    query, 
+    where,
+    doc,
+    setDoc,
+    getDoc
+} from "firebase/firestore";
+import { vehicleData } from './vehicleData.js';
+import { maintenanceData } from './maintenanceData.js';
 
-// Statik plaka listesi
-const staticPlates = [
-    "34 ABC 123", "06 XYZ 456", "35 KML 789", "16 RTY 101", "01 FGH 234",
-    "27 PLM 567", "58 VBN 890", "33 ASD 112", "41 JKL 334", "07 ZXC 556",
-    "61 GHJ 778", "38 QWE 990", "10 VFR 246", "42 BNM 802", "03 CDE 159"
-];
-
-// Marka ve model verisi
-const vehicleData = {
-    "Toyota": ["Corolla", "Yaris", "RAV4"],
-    "Ford": ["Focus", "Fiesta", "Puma"],
-    "Volkswagen": ["Golf", "Passat", "Polo"],
-    "Renault": ["Clio", "Megane", "Captur"],
-    "Fiat": ["Egea", "500", "Panda"],
+// .env.local dosyasından ayarları okuyoruz.
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-function getRandomItem(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+console.log("Firebase başarıyla başlatıldı.");
+
+// --- Kimlik Doğrulama Fonksiyonları ---
+
+export const registerUser = async (email, password, profileData) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    
+    await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        ...profileData,
+        createdAt: new Date()
+    });
+    
+    return userCredential;
+};
+
+export const loginUser = (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password);
+};
+
+export const logoutUser = () => {
+    return signOut(auth);
+};
+
+export const onAuthChange = (callback) => {
+    return onAuthStateChanged(auth, callback);
+};
+
+export const getUserProfile = async (uid) => {
+    if (!uid) return null;
+    const userDocRef = doc(db, "users", uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+        return userDocSnap.data();
+    } else {
+        return null;
+    }
+};
+
+// --- Veritabanı Fonksiyonları ---
+
+export { vehicleData, maintenanceData };
+
+export async function addVehicle(vehicle, userId) {
+    try {
+        await addDoc(collection(db, "vehicles"), {
+            ...vehicle,
+            plate: vehicle.plate.toUpperCase().trim(),
+            ownerId: userId,
+            createdAt: new Date()
+        });
+    } catch (e) {
+        console.error("Araç eklenirken hata: ", e);
+    }
 }
 
-function generateInitialData() {
-    console.log("İlk test verisi oluşturuluyor...");
-    const vehicles = staticPlates.map((plate, index) => {
-        const brand = getRandomItem(Object.keys(vehicleData));
-        const model = getRandomItem(vehicleData[brand]);
-        return {
-            id: index + 1,
-            plate: plate,
-            vin: `VIN${plate.replace(/\s/g, '')}`,
-            brand: brand,
-            model: model,
-            km: Math.floor(Math.random() * 150000) + 20000,
-            purchaseLocation: getRandomItem(["Bayiden Sıfır", "Sahibinden", "Galeriden"])
-        };
+export async function getVehiclesForUser(userId) {
+    if (!userId) return [];
+    const q = query(collection(db, "vehicles"), where("ownerId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    const vehicles = [];
+    querySnapshot.forEach((doc) => {
+        vehicles.push({ id: doc.id, ...doc.data() });
     });
+    return vehicles;
+}
 
+export async function addServiceRecord(record, serviceProviderId) {
+     try {
+        await addDoc(collection(db, "records"), {
+            ...record,
+            plate: record.plate.toUpperCase().trim(),
+            serviceProviderId: serviceProviderId,
+            createdAt: new Date()
+        });
+    } catch (e) {
+        console.error("Servis kaydı eklenirken hata: ", e);
+    }
+}
+
+export async function getServiceRecordsByPlate(plate) {
+    const upperPlate = plate.toUpperCase().trim();
+    const q = query(collection(db, "records"), where("plate", "==", upperPlate));
+    const querySnapshot = await getDocs(q);
     const records = [];
-    vehicles.forEach(vehicle => {
-        let recordCount = Math.floor(Math.random() * 2) + 3; // Her araca 3-4 kayıt
-        let lastKm = vehicle.km - (recordCount * (Math.floor(Math.random() * 5000) + 10000));
-        let lastDate = new Date();
-        lastDate.setFullYear(lastDate.getFullYear() - 2);
-
-        for (let i = 0; i < recordCount; i++) {
-            lastKm += Math.floor(Math.random() * 8000) + 5000;
-            lastDate.setMonth(lastDate.getMonth() + (Math.floor(Math.random() * 6) + 3));
-            
-            const isAccident = Math.random() > 0.7; // %30 ihtimalle kaza
-            if (isAccident) {
-                const cost = (Math.floor(Math.random() * 10) + 2) * 1000;
-                records.push({
-                    id: `rec_${Date.now()}_${records.length}`,
-                    plate: vehicle.plate,
-                    vin: vehicle.vin,
-                    mileage: lastKm,
-                    date: lastDate.toISOString().split('T')[0],
-                    type: 'Kaza',
-                    accidentDescription: getRandomItem(["Park halinde çarpma", "Öndeki araca çarpma", "Zincirleme kaza"]),
-                    partsReplaced: getRandomItem(["Ön tampon", "Sol far"]),
-                    partsPainted: getRandomItem(["Sağ ön çamurluk", "Kaput"]),
-                    airbagDeployed: Math.random() > 0.8,
-                    totalCost: cost,
-                    tramer: `${cost.toLocaleString('tr-TR')} TL Hasar Kaydı`,
-                    invoicePhoto: null
-                });
-            } else {
-                records.push({
-                    id: `rec_${Date.now()}_${records.length}`,
-                    plate: vehicle.plate,
-                    vin: vehicle.vin,
-                    mileage: lastKm,
-                    date: lastDate.toISOString().split('T')[0],
-                    type: 'Bakım',
-                    maintenanceType: 'Periyodik Bakım',
-                    partsChanged: 'Yağ filtresi, Hava filtresi, Motor yağı',
-                });
-            }
-        }
+    querySnapshot.forEach((doc) => {
+        records.push({ id: doc.id, ...doc.data() });
     });
 
-    return { vehicles, records };
+    const vehicleQuery = query(collection(db, "vehicles"), where("plate", "==", upperPlate));
+    const vehicleSnapshot = await getDocs(vehicleQuery);
+    const vehicle = vehicleSnapshot.docs.length > 0 ? {id: vehicleSnapshot.docs[0].id, ...vehicleSnapshot.docs[0].data()} : null;
+
+    return { vehicle, records: records.sort((a, b) => new Date(b.date) - new Date(a.date)) };
 }
 
+export async function getServiceRecordsByVin(vin) {
+     const upperVin = vin.toUpperCase().trim();
+     const q = query(collection(db, "records"), where("vin", "==", upperVin));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((doc) => {
+        records.push({ id: doc.id, ...doc.data() });
+    });
+    
+    const vehicleQuery = query(collection(db, "vehicles"), where("vin", "==", upperVin));
+    const vehicleSnapshot = await getDocs(vehicleQuery);
+    const vehicle = vehicleSnapshot.docs.length > 0 ? {id: vehicleSnapshot.docs[0].id, ...vehicleSnapshot.docs[0].data()} : null;
 
-function loadDB() {
-    let db = JSON.parse(localStorage.getItem(DB_KEY));
-    if (!db || !db.vehicles || db.vehicles.length === 0) {
-        db = generateInitialData();
-        saveDB(db);
-    }
-    return db;
-}
-
-function saveDB(db) {
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
-}
-
-// --- API Fonksiyonları ---
-
-export function getVehicleData() {
-    return vehicleData;
-}
-
-export function addVehicle(vehicle) {
-    const db = loadDB();
-    const newVehicle = { id: Date.now(), ...vehicle };
-    db.vehicles.push(newVehicle);
-    saveDB(db);
-}
-
-export function addServiceRecord(record) {
-    const db = loadDB();
-    const newRecord = { id: `rec_${Date.now()}`, ...record };
-    db.records.push(newRecord);
-
-    // Aracın son KM'sini güncelle
-    const vehicleIndex = db.vehicles.findIndex(v => v.plate === record.plate || v.vin === record.vin);
-    if (vehicleIndex !== -1 && db.vehicles[vehicleIndex].km < record.mileage) {
-        db.vehicles[vehicleIndex].km = record.mileage;
-    }
-
-    saveDB(db);
-}
-
-// BU FONKSİYONLAR EKLENDİ
-export function getServiceRecordsByPlate(plate) {
-    const db = loadDB();
-    const vehicle = db.vehicles.find(v => v.plate.toLowerCase() === plate.toLowerCase());
-    if (!vehicle) {
-        return { vehicle: null, records: [] };
-    }
-    const records = db.records.filter(r => r.plate.toLowerCase() === plate.toLowerCase())
-                              .sort((a, b) => new Date(b.date) - new Date(a.date));
-    return { vehicle, records };
-}
-
-export function getServiceRecordsByVin(vin) {
-    const db = loadDB();
-    const vehicle = db.vehicles.find(v => v.vin.toLowerCase() === vin.toLowerCase());
-    if (!vehicle) {
-        return { vehicle: null, records: [] };
-    }
-    const records = db.records.filter(r => r.vin.toLowerCase() === vin.toLowerCase())
-                              .sort((a, b) => new Date(b.date) - new Date(a.date));
-    return { vehicle, records };
+    return { vehicle, records: records.sort((a, b) => new Date(b.date) - new Date(a.date)) };
 }
 
