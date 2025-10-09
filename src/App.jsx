@@ -13,22 +13,34 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthChange(async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser);
-        const profile = await getUserProfile(firebaseUser.uid);
+        // Profili alana kadar bekle, eğer gelmezse tekrar dene
+        let profile = null;
+        let attempts = 0;
+        while (!profile && attempts < 5) {
+            profile = await getUserProfile(firebaseUser.uid);
+            if (!profile) {
+                attempts++;
+                await new Promise(res => setTimeout(res, 500)); // Yarım saniye bekle
+            }
+        }
         setUserProfile(profile);
+        setUser(firebaseUser); 
       } else {
         setUser(null);
         setUserProfile(null);
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   const renderDashboard = () => {
-    if (!userProfile) {
-      return <div className="text-center p-10">Kullanıcı paneli yükleniyor...</div>;
+    if (!userProfile) { 
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                Kullanıcı profili bulunamadı veya yüklenemedi. Lütfen tekrar giriş yapın.
+            </div>
+        );
     }
 
     switch (userProfile.role) {
@@ -46,19 +58,20 @@ function App() {
   
   if (loading) {
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="flex items-center justify-center min-h-screen bg-gray-50">
             <div className="text-center">
-                <p className="text-xl font-semibold text-gray-700">OtoRapor Yükleniyor...</p>
+                 <img src="/logo.svg" alt="OtoSicil Logo" className="h-40 w-auto mx-auto mb-6"/>
+                <p className="text-xl font-semibold text-gray-700">OtoSicil Yükleniyor...</p>
                 <div className="loader mt-4"></div>
             </div>
-            <style>{`.loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            <style>{`.loader { border: 4px solid #f3f3f3; border-top: 4px solid #229ed8; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: auto; } @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         </div>
     );
   }
 
   return (
     <div className="font-sans">
-      {user ? renderDashboard() : <Auth onLoginSuccess={setUser} />}
+      {user ? renderDashboard() : <Auth />}
     </div>
   );
 }

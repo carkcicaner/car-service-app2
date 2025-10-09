@@ -27,8 +27,6 @@ function BuyerDashboard({ user, userProfile }) {
         setLoading(false);
     };
 
-    const handleLogout = async () => { await logoutUser(); };
-    
     const renderRecord = (record) => {
         const isAccident = record.type === 'Kaza';
         const cardColor = isAccident ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200';
@@ -39,6 +37,11 @@ function BuyerDashboard({ user, userProfile }) {
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="font-bold text-lg">{icon} {record.type}</p>
+                        {record.serviceProviderName && (
+                            <p className="text-sm font-semibold text-gray-700 mt-1">
+                                Servis: {record.serviceProviderName} {record.isVerifiedService && '✅'}
+                            </p>
+                        )}
                         <p className="text-sm text-gray-600">Tarih: {new Date(record.date).toLocaleDateString('tr-TR')}</p>
                         <p className="text-sm text-gray-600">Kilometre: {Number(record.mileage).toLocaleString('tr-TR')} km</p>
                     </div>
@@ -64,19 +67,32 @@ function BuyerDashboard({ user, userProfile }) {
     }
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <header className="bg-white shadow-md"><div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center"><div><h1 className="text-2xl font-bold text-gray-900">👤 Alıcı Paneli</h1><p className="text-sm text-gray-500">{userProfile.email}</p></div><button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Çıkış Yap</button></div></header>
+        <div className="min-h-screen bg-gray-50">
+            <header className="bg-white shadow-sm">
+                 <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                    <button onClick={logoutUser} title="Oturumu Kapat">
+                        <img src="/logo.svg" alt="OtoSicil Logo" className="h-16 w-auto" />
+                    </button>
+                    <div className="flex items-center">
+                        <div className="text-right mr-4">
+                             <p className="font-semibold text-brand-dark-blue">{userProfile.role}</p>
+                             <p className="text-sm text-gray-500">{userProfile.email}</p>
+                        </div>
+                        <button onClick={logoutUser} className="bg-brand-gray hover:bg-opacity-80 text-white font-bold py-2 px-4 rounded-lg">Çıkış Yap</button>
+                    </div>
+                </div>
+            </header>
             <main className="py-10">
-                <div className="bg-white p-8 rounded-xl shadow-lg max-w-4xl mx-auto">
+                 <div className="bg-white p-8 rounded-xl shadow-lg max-w-4xl mx-auto">
                     <h2 className="text-xl font-bold text-gray-800 mb-6">Araç Servis Geçmişi Sorgulama</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div className="space-y-2">
                              <label className="block text-sm font-medium text-gray-700">Plaka ile Sorgula</label>
-                            <div className="flex"><input type="text" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="34 ABC 123" className="flex-grow p-3 border rounded-l-lg" /><button onClick={() => handleSearch('plate')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-r-lg">Sorgula</button></div>
+                            <div className="flex"><input type="text" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="34 ABC 123" className="flex-grow p-3 border rounded-l-lg" /><button onClick={() => handleSearch('plate')} className="bg-brand-dark-blue hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded-r-lg">Sorgula</button></div>
                         </div>
                         <div className="space-y-2">
                              <label className="block text-sm font-medium text-gray-700">Şasi No (VIN) ile Sorgula</label>
-                             <div className="flex"><input type="text" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="VIN123456789" className="flex-grow p-3 border rounded-l-lg" /><button onClick={() => handleSearch('vin')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-r-lg">Sorgula</button></div>
+                             <div className="flex"><input type="text" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="VIN123456789" className="flex-grow p-3 border rounded-l-lg" /><button onClick={() => handleSearch('vin')} className="bg-brand-dark-blue hover:bg-opacity-90 text-white font-bold py-2 px-4 rounded-r-lg">Sorgula</button></div>
                         </div>
                     </div>
 
@@ -95,6 +111,9 @@ function BuyerDashboard({ user, userProfile }) {
                                     <p><strong>Sınıf:</strong> {searchResult.vehicle.category}</p>
                                     <p><strong>Motor:</strong> {searchResult.vehicle.engine}</p>
                                     <p><strong>Paket:</strong> {searchResult.vehicle.pkg}</p>
+                                    {searchResult.vehicle.purchaseLocation && (
+                                        <p className="col-span-full"><strong>Alındığı Yer:</strong> {searchResult.vehicle.purchaseLocation} {searchResult.vehicle.isVerifiedPurchase && '✅'}</p>
+                                    )}
                                 </div>
                             </div>
                              <div>
@@ -109,6 +128,5 @@ function BuyerDashboard({ user, userProfile }) {
         </div>
     );
 }
-
 export default BuyerDashboard;
 

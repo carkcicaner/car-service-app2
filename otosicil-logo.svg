@@ -1,0 +1,17 @@
+<svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
+  <g id="logo-icon" transform="translate(10, 5) scale(1)">
+    <path d="M50,2 L90,20 C90,60 75,88 50,95 C25,88 10,60 10,20 L50,2 Z" fill="#43C5C1"/>
+
+    <g id="car" fill="#2A7F9E" transform="translate(0, 10)">
+      <path d="M25,50 L35,50 L40,40 L60,40 L65,50 L75,50 L75,58 L25,58 Z" />
+      <rect x="30" y="58" width="10" height="5" rx="2"/>
+      <rect x="60" y="58" width="10" height="5" rx="2"/>
+    </g>
+
+    <path d="M40 55 L48 65 L65 45" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <text x="130" y="65" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="bold" fill="#333333">
+    Oto<tspan fill="#43C5C1">Sicil</tspan>
+  </text>
+</svg>

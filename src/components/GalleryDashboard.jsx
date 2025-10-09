@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { addVehicle, getVehiclesForUser, logoutUser, vehicleData } from '../api.js';
+import { getVehicleByVin, addVehicle, getVehiclesForUser, logoutUser } from '../api.js';
 
 function GalleryDashboard({ user, userProfile }) {
     const [vehicles, setVehicles] = useState([]);
-    const [newVehicle, setNewVehicle] = useState({
-        plate: '', vin: '', category: '', brand: '', model: '', engine: '', pkg: '', km: '', purchaseLocation: ''
-    });
+    const [vinInput, setVinInput] = useState('');
+    const [foundVehicle, setFoundVehicle] = useState(null);
+    const [plate, setPlate] = useState('');
+    const [km, setKm] = useState('');
     const [message, setMessage] = useState('');
-
-    const categories = Object.keys(vehicleData);
-    const brands = newVehicle.category ? Object.keys(vehicleData[newVehicle.category]) : [];
-    const models = newVehicle.brand ? Object.keys(vehicleData[newVehicle.category][newVehicle.brand]) : [];
-    const engines = newVehicle.model ? Object.keys(vehicleData[newVehicle.category][newVehicle.brand][newVehicle.model]) : [];
-    const packages = newVehicle.engine ? vehicleData[newVehicle.category][newVehicle.brand][newVehicle.model][newVehicle.engine] : [];
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -20,78 +16,109 @@ function GalleryDashboard({ user, userProfile }) {
         }
     }, [user]);
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setNewVehicle(prev => {
-            const updated = { ...prev, [name]: value };
-            if (name === 'category') { updated.brand = ''; updated.model = ''; updated.engine = ''; updated.pkg = ''; }
-            if (name === 'brand') { updated.model = ''; updated.engine = ''; updated.pkg = ''; }
-            if (name === 'model') { updated.engine = ''; updated.pkg = ''; }
-            if (name === 'engine') { updated.pkg = ''; }
-            return updated;
-        });
+    const handleVinSearch = async () => {
+        if (!vinInput) return;
+        setIsLoading(true);
+        setMessage('');
+        const vehicleDetails = await getVehicleByVin(vinInput, userProfile);
+        
+        if (userProfile.brands && !userProfile.brands.includes(vehicleDetails.brand)) {
+            setMessage({ type: 'error', text: `Bu aracı ekleme yetkiniz yok. Sadece (${userProfile.brands.join(', ')}) markalarını ekleyebilirsiniz.` });
+            setFoundVehicle(null);
+            setIsLoading(false);
+            return;
+        }
+
+        setFoundVehicle(vehicleDetails);
+        if (vehicleDetails.id) {
+            setPlate(vehicleDetails.plate || '');
+            setKm(vehicleDetails.km || '');
+        } else {
+             setPlate(''); setKm('');
+        }
+        setIsLoading(false);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!newVehicle.plate || !newVehicle.vin) {
-            setMessage({ type: 'error', text: 'Plaka ve Şasi Numarası zorunludur.' });
+        if (!foundVehicle || !plate) {
+            setMessage({ type: 'error', text: 'Lütfen önce bir Şasi No sorgulayın ve Plaka girin.' });
             return;
         }
-        await addVehicle(newVehicle, user.uid);
-        setMessage({ type: 'success', text: `Araç (${newVehicle.plate}) başarıyla eklendi.` });
-        setNewVehicle({ plate: '', vin: '', category: '', brand: '', model: '', engine: '', pkg: '', km: '', purchaseLocation: '' });
+        if (foundVehicle.id) {
+             setMessage({ type: 'error', text: 'Bu araç zaten envanterinizde mevcut.' });
+             return;
+        }
+        const vehicleToSave = { ...foundVehicle, plate, km };
+        await addVehicle(vehicleToSave, userProfile);
+        setMessage({ type: 'success', text: `Araç (${plate}) başarıyla envantere eklendi.` });
+        setVinInput('');
+        setFoundVehicle(null);
+        setPlate('');
+        setKm('');
         getVehiclesForUser(user.uid).then(setVehicles);
     };
 
-    const handleLogout = async () => { await logoutUser(); };
-
     return (
-        <div className="min-h-screen bg-gray-100">
-            <header className="bg-white shadow-md">
+        <div className="min-h-screen bg-gray-50">
+            <header className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">🚗 {userProfile.role} Paneli</h1>
-                        <p className="text-sm text-gray-500">{userProfile.email}</p>
+                    <button onClick={logoutUser} title="Oturumu Kapat">
+                        <img src="/logo.svg" alt="OtoSicil Logo" className="h-16 w-auto" />
+                    </button>
+                    <div className="flex items-center">
+                        <div className="text-right mr-4">
+                            <p className="font-semibold text-brand-dark-blue">{userProfile.businessName || userProfile.role}</p>
+                            <p className="text-sm text-gray-500">{userProfile.email}</p>
+                        </div>
+                        <button onClick={logoutUser} className="bg-brand-gray hover:bg-opacity-80 text-white font-bold py-2 px-4 rounded-lg">Çıkış Yap</button>
                     </div>
-                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Çıkış Yap</button>
                 </div>
             </header>
             <main className="py-10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                     <div className="bg-white p-8 rounded-xl shadow-lg">
-                        <h2 className="text-xl font-bold text-gray-800 mb-6">Yeni Araç Ekle</h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input type="text" name="plate" value={newVehicle.plate} onChange={handleChange} placeholder="Plaka*" required className="w-full p-3 border rounded-lg" />
-                                <input type="text" name="vin" value={newVehicle.vin} onChange={handleChange} placeholder="Şasi No (VIN)*" required className="w-full p-3 border rounded-lg" />
+                        <h2 className="text-xl font-bold text-gray-800 mb-6">Yeni Araç Ekle (VIN ile)</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Şasi Numarası (VIN)</label>
+                                <div className="flex mt-1">
+                                    <input type="text" value={vinInput} onChange={(e) => setVinInput(e.target.value)} className="flex-grow p-3 border rounded-l-lg" placeholder="17 haneli Şasi No'yu girin"/>
+                                    <button onClick={handleVinSearch} disabled={isLoading} className="bg-brand-dark-blue text-white font-bold p-3 rounded-r-lg disabled:bg-gray-400">
+                                        {isLoading ? '...' : 'Getir'}
+                                    </button>
+                                </div>
                             </div>
-                            <select name="category" value={newVehicle.category} onChange={handleChange} className="w-full p-3 border rounded-lg bg-white"><option value="">Araç Sınıfı Seçin</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                            <select name="brand" value={newVehicle.brand} onChange={handleChange} disabled={!newVehicle.category} className="w-full p-3 border rounded-lg bg-white disabled:bg-gray-100"><option value="">Marka Seçin</option>{brands.map(b => <option key={b} value={b}>{b}</option>)}</select>
-                            <select name="model" value={newVehicle.model} onChange={handleChange} disabled={!newVehicle.brand} className="w-full p-3 border rounded-lg bg-white disabled:bg-gray-100"><option value="">Model Seçin</option>{models.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                            <select name="engine" value={newVehicle.engine} onChange={handleChange} disabled={!newVehicle.model} className="w-full p-3 border rounded-lg bg-white disabled:bg-gray-100"><option value="">Motor Seçin</option>{engines.map(e => <option key={e} value={e}>{e}</option>)}</select>
-                            <select name="pkg" value={newVehicle.pkg} onChange={handleChange} disabled={!newVehicle.engine} className="w-full p-3 border rounded-lg bg-white disabled:bg-gray-100"><option value="">Paket Seçin</option>{packages.map(p => <option key={p} value={p}>{p}</option>)}</select>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input type="number" name="km" value={newVehicle.km} onChange={handleChange} placeholder="Kilometre" className="w-full p-3 border rounded-lg" />
-                                <input type="text" name="purchaseLocation" value={newVehicle.purchaseLocation} onChange={handleChange} placeholder="Alındığı Yer" className="w-full p-3 border rounded-lg" />
-                            </div>
-                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Aracı Ekle</button>
-                            {message && <p className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</p>}
-                        </form>
+
+                            {foundVehicle && (
+                                <form onSubmit={handleSubmit} className="space-y-4 border-t pt-6 mt-6 animate-fade-in">
+                                    <div className="p-4 bg-gray-50 rounded-lg grid grid-cols-2 gap-x-6 gap-y-2">
+                                        <p className="text-sm"><strong>Marka:</strong> {foundVehicle.brand}</p>
+                                        <p className="text-sm"><strong>Model:</strong> {foundVehicle.model}</p>
+                                        <p className="text-sm col-span-2"><strong>Motor/Paket:</strong> {foundVehicle.engine} - {foundVehicle.pkg}</p>
+                                    </div>
+                                     <input type="text" value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="Plaka*" required className="w-full p-3 border rounded-lg" />
+                                     <input type="number" value={km} onChange={(e) => setKm(e.target.value)} placeholder="Kilometre" className="w-full p-3 border rounded-lg" />
+                                    <button type="submit" disabled={foundVehicle.id} className="w-full bg-brand-light-blue hover:bg-opacity-90 text-white font-bold py-3 px-4 rounded-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                        {foundVehicle.id ? 'Araç Zaten Kayıtlı' : 'Aracı Envantere Ekle'}
+                                    </button>
+                                </form>
+                            )}
+                             {message && <p className={`mt-4 p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{message.text}</p>}
+                        </div>
                     </div>
                     <div className="bg-white p-8 rounded-xl shadow-lg">
                         <h2 className="text-xl font-bold text-gray-800 mb-6">Envanterdeki Araçlarım ({vehicles.length})</h2>
                         <ul className="space-y-3 max-h-[32rem] overflow-y-auto pr-2">
-                            {vehicles.length > 0 ? vehicles.map(v => (
-                                <li key={v.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <p className="font-bold text-gray-800">{v.plate} - {v.brand} {v.model}</p>
-                                    <p className="text-sm text-gray-600">{v.engine} - {v.pkg}</p>
-                                    <p className="text-sm text-gray-500 mt-1">VIN: {v.vin} | KM: {Number(v.km).toLocaleString('tr-TR')}</p>
+                            {vehicles.map(v => (
+                                <li key={v.id} className="p-4 bg-gray-50 rounded-lg border">
+                                    <p className="font-bold">{v.plate} - {v.brand} {v.model}</p>
+                                    <p className="text-sm text-gray-500 mt-1">VIN: {v.vin}</p>
                                 </li>
-                            )) : <p className="text-gray-500">Henüz hiç araç eklemediniz.</p>}
+                            ))}
                         </ul>
                     </div>
-                </div>
+                 </div>
             </main>
         </div>
     );

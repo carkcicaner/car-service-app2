@@ -1,85 +1,104 @@
 import React, { useState } from 'react';
-import { registerUser, loginUser } from '../api.js';
+import { registerUser, loginUser, officialData } from '../api.js';
 
-function Auth({ onLoginSuccess }) {
+function Auth() {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    
-    // Kayıt form verileri
     const [role, setRole] = useState('Alıcı');
+    const [businessName, setBusinessName] = useState('');
     const [taxNumber, setTaxNumber] = useState('');
     const [serviceType, setServiceType] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setIsLoading(true);
         try {
             if (isLogin) {
-                const userCredential = await loginUser(email, password);
-                onLoginSuccess(userCredential.user);
+                await loginUser(email, password);
             } else {
                 const profileData = { email, role };
-                if (role === 'Galeri Sahibi') profileData.taxNumber = taxNumber;
-                if (role === 'Servis') profileData.serviceType = serviceType;
-                
-                const userCredential = await registerUser(email, password, profileData);
-                onLoginSuccess(userCredential.user);
+                if (role === 'Galeri Sahibi' || role === 'Servis') {
+                    profileData.businessName = businessName;
+                    profileData.taxNumber = taxNumber;
+                }
+                if (role === 'Servis') {
+                    profileData.serviceType = serviceType;
+                }
+                await registerUser(email, password, profileData);
             }
         } catch (err) {
-            let friendlyMessage = "Bir hata oluştu. Lütfen tekrar deneyin.";
-            if (err.code) {
+            let friendlyMessage = "Bir hata oluştu.";
+             if (err.code) { 
                 switch(err.code) {
-                    case 'auth/wrong-password': friendlyMessage = "Hatalı şifre. Lütfen tekrar deneyin."; break;
-                    case 'auth/user-not-found': friendlyMessage = "Bu e-posta ile kayıtlı bir kullanıcı bulunamadı."; break;
-                    case 'auth/email-already-in-use': friendlyMessage = "Bu e-posta adresi zaten kullanılıyor."; break;
-                    case 'auth/invalid-email': friendlyMessage = "Lütfen geçerli bir e-posta adresi girin."; break;
-                    case 'auth/weak-password': friendlyMessage = "Şifreniz en az 6 karakter olmalıdır."; break;
-                    default: friendlyMessage = "Giriş yapılamadı: " + err.message;
+                    case 'auth/wrong-password': friendlyMessage = "Hatalı şifre."; break;
+                    case 'auth/user-not-found': friendlyMessage = "Kullanıcı bulunamadı."; break;
+                    case 'auth/email-already-in-use': friendlyMessage = "Bu e-posta zaten kullanılıyor."; break;
+                    case 'auth/invalid-email': friendlyMessage = "Geçersiz e-posta adresi."; break;
+                    case 'auth/weak-password': friendlyMessage = "Şifre en az 6 karakter olmalıdır."; break;
+                    case 'auth/invalid-tax-id': friendlyMessage = "Vergi Numarası, seçilen işletme ile uyuşmuyor."; break;
+                    default: friendlyMessage = "İşlem başarısız: " + err.message;
                 }
             }
             setError(friendlyMessage);
         }
+        setIsLoading(false);
     };
+    
+    const businessList = role === 'Galeri Sahibi' ? officialData.showrooms : officialData.services;
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4">
+            <div className="mb-10">
+                <img src="/logo.svg" alt="OtoSicil Logo" className="h-40 w-auto"/>
+            </div>
             <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-                <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-                    {isLogin ? 'Giriş Yap' : 'Kayıt Ol'}
+                <h2 className="text-2xl font-bold text-center text-brand-dark-blue mb-6">
+                    {isLogin ? 'Sisteme Giriş Yap' : 'Yeni Hesap Oluştur'}
                 </h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
+                     <div>
                         <label className="block text-sm font-medium text-gray-700">E-posta Adresi</label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1 w-full p-3 border rounded-lg" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Şifre</label>
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full p-3 border rounded-lg" />
                     </div>
 
                     {!isLogin && (
                         <div className="space-y-4 pt-2">
-                            <div>
+                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Kullanıcı Rolü</label>
-                                <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500">
+                                <select value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full p-3 border rounded-lg bg-white">
                                     <option>Alıcı</option>
                                     <option>Bireysel Satıcı</option>
                                     <option>Galeri Sahibi</option>
                                     <option>Servis</option>
                                 </select>
                             </div>
-                            {role === 'Galeri Sahibi' && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Vergi Numarası</label>
-                                    <input type="text" value={taxNumber} onChange={(e) => setTaxNumber(e.target.value)} required className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                                </div>
+                            {(role === 'Galeri Sahibi' || role === 'Servis') && (
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">{role} Adı</label>
+                                        <select value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className="mt-1 w-full p-3 border rounded-lg bg-white">
+                                            <option value="">İşletmenizi Seçin</option>
+                                            {businessList.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Vergi Numarası</label>
+                                        <input type="text" value={taxNumber} onChange={(e) => setTaxNumber(e.target.value)} required className="mt-1 w-full p-3 border rounded-lg" />
+                                    </div>
+                                </>
                             )}
-                            {role === 'Servis' && (
+                             {role === 'Servis' && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Servis Türü</label>
-                                    <select value={serviceType} onChange={(e) => setServiceType(e.target.value)} required className="mt-1 w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-blue-500 focus:border-blue-500">
+                                    <select value={serviceType} onChange={(e) => setServiceType(e.target.value)} required className="mt-1 w-full p-3 border rounded-lg bg-white">
                                         <option value="">Lütfen Seçin</option>
                                         <option>Yetkili Servis</option>
                                         <option>Özel Servis</option>
@@ -92,15 +111,15 @@ function Auth({ onLoginSuccess }) {
                     
                     {error && <p className="text-red-500 text-sm text-center">{error}</p>}
                     
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        {isLogin ? 'Giriş Yap' : 'Hesap Oluştur'}
+                    <button type="submit" disabled={isLoading} className="w-full bg-brand-dark-blue hover:bg-opacity-90 text-white font-bold py-3 px-4 rounded-lg disabled:bg-gray-400">
+                        {isLoading ? 'İşleniyor...' : (isLogin ? 'Giriş Yap' : 'Hesap Oluştur')}
                     </button>
+                     <div className="text-center mt-4">
+                        <button type="button" disabled={isLoading} onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-sm text-brand-light-blue hover:underline disabled:text-gray-400">
+                            {isLogin ? 'Hesabın yok mu? Kayıt ol.' : 'Zaten hesabın var mı? Giriş yap.'}
+                        </button>
+                    </div>
                 </form>
-                <div className="text-center mt-4">
-                    <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-sm text-blue-600 hover:underline">
-                        {isLogin ? 'Hesabın yok mu? Kayıt ol.' : 'Zaten hesabın var mı? Giriş yap.'}
-                    </button>
-                </div>
             </div>
         </div>
     );
